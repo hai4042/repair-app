@@ -1,123 +1,70 @@
-name: Android CI
+name: Build Android APK
 
-# ========== 事件触发器 ==========
 on:
-  push:                     # 代码推送触发
-    branches: [ "main" ]   # 仅监视 main 分支
-    paths:                  # 仅当指定文件变更时触发
-      - ".github/workflows/*"
-      - "**/*.py"
-      - "buildozer.spec"
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
-  pull_request:             # PR 触发
-    branches: [ "main" ]
-
-  workflow_dispatch:        # 手动触发选项
-
-# ========== 全局环境变量 ==========
-env:
-  WORKSPACE: ${{ github.workspace }}           # 工作区根目录
-  PYTHON_USER_BASE: ${{ github.workspace }}/.python_packages
-  ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
-  ANDROID_NDK_HOME: ${{ github.workspace }}/.android-ndk
-  BUILD_DIR: ${{ github.workspace }}/.buildozer
-
-# ========== 构建任务 ==========
 jobs:
-  android-build:
-    name: Build Android APK
-    runs-on: ubuntu-20.04    # 指定运行器系统
-    timeout-minutes: 90      # 超时时间
-
-    # ===== 构建步骤 =====
+  build:
+    runs-on: ubuntu-latest
     steps:
-      # ---- Step 1: 拉取代码 ----
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v2
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
         with:
-          fetch-depth: 0     # 获取完整提交历史
+          python-version: '3.8'
 
-      # ---- Step 2: 初始化环境 ----
-      - name: Initialize workspace
+      - name: Install system dependencies
         run: |
-          # 创建所有隔离目录
-          mkdir -p ${{ env.PYTHON_USER_BASE }}
-          mkdir -p ${{ env.ANDROID_SDK_ROOT }}
-          mkdir -p ${{ env.ANDROID_NDK_HOME }}
-          mkdir -p ${{ env.BUILD_DIR }}
-
-          # 递归设置所有权和权限
-          sudo chown -R runner:docker ${{ env.WORKSPACE }}
-          sudo chmod -R 755 ${{ env.WORKSPACE }}
-
-          # 验证目录结构
-          echo "工作区目录结构："
-          ls -al ${{ env.WORKSPACE }
-
-      # ---- Step 3: 配置 Python ----
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
-
-      # ---- Step 4: 安装系统依赖 ----
-      - name: Install system packages
-        run: |
-          sudo apt-get update -y
+          sudo apt-get update
           sudo apt-get install -y \
               git \
-              openjdk-11-jdk \
-              zlib1g-dev \
-              libssl-dev \
-              libncurses5-dev \
+              zip \
               unzip \
-              python3-pip
+              openjdk-8-jdk \
+              python3-pip \
+              autoconf \
+              libtool \
+              pkg-config \
+              zlib1g-dev \
+              libncurses5-dev \
+              libtinfo5
 
-      # ---- Step 5: 安装构建工具 ----
-      - name: Install Python tools
+      - name: Install Python dependencies
         run: |
-          # 配置 Python 用户安装路径
-          export PYTHONUSERBASE=${{ env.PYTHON_USER_BASE }}
-          export PATH="$PYTHONUSERBASE/bin:$PATH"
+          python -m pip install --upgrade pip
+          pip install cython==0.29.19 buildozer==1.2.0
 
-          # 安装核心工具
-          python -m pip install --user --upgrade pip
-          python -m pip install --user wheel setuptools
-          python -m pip install --user cython==0.29.32
-          python -m pip install --user buildozer==1.5.0
-
-          # 验证安装
-          echo "Buildozer 版本："
-          ${{ env.PYTHON_USER_BASE }}/bin/buildozer --version
-
-          # 持久化路径
-          echo "$PYTHONUSERBASE/bin" >> $GITHUB_PATH
-
-      # ---- Step 6: 构建 APK ----
-      - name: Build debug APK
+      - name: Initialize Buildozer
         run: |
-          # 导出关键环境变量
-          export HOME=${{ env.WORKSPACE }}/.home
-          export ANDROID_SDK_ROOT=${{ env.ANDROID_SDK_ROOT }}
-          export ANDROID_NDK_HOME=${{ env.ANDROID_NDK_HOME }}
+          buildozer init
+          # 修改buildozer.spec配置文件
+          sed -i '/^#title = My Application/c\title = RepairApp' buildozer.spec
+          sed -i '/^package.name = myapp/c\package.name = repairapp' buildozer.spec
+          sed -i '/^package.domain = org.test/c\package.domain = com.example' buildozer.spec
+          sed -i '/^#orientation = portrait/c\orientation = portrait' buildozer.spec
+          sed -i '/^requirements = /c\requirements = python3,kivy==2.0.0,requests,openssl,pyjnius,android' buildozer.spec
+          sed -i '/^#android.permissions = /c\android.permissions = INTERNET' buildozer.spec
+          sed -i '/^#android.api = /c\android.api = 30' buildozer.spec
+          sed -i '/^#android.ndk = /c\android.ndk = 19c' buildozer.spec
 
-          # 执行构建
-          ${{ env.PYTHON_USER_BASE }}/bin/buildozer \
-            --sdk_dir $ANDROID_SDK_ROOT \
-            --ndk_dir $ANDROID_NDK_HOME \
-            --verbose \
-            android debug
+      - name: Accept Android licenses
+        run: |
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          yes | $ANDROID_SDK_ROOT/tools/bin/sdkmanager --licenses
 
-          # 检查产物
-          echo "生成文件列表："
-          ls -l bin/
+      - name: Build Android APK
+        run: |
+          buildozer -v android debug
 
-      # ---- Step 7: 上传产物 ----
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v2
         with:
-          name: app-debug
-          path: |
-            bin/*.apk
-            bin/*.apk.idsig
-          retention-days: 7
+          name: repair-app
+          path: bin/*.apk
+          retention-days: 5
