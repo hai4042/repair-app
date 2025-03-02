@@ -23,3 +23,4 @@ android.accept_sdk_license = True
 # 构建配置
 log_level = 2
 p4a.branch = 2023.09.16
+android.accept_sdk_license = True  # 显式接受协议

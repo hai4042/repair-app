@@ -13,7 +13,7 @@ jobs:
       NDK_VERSION: 25.2.9519653
       BUILD_TOOLS_VERSION: "34.0.0"
       TARGET_API: "33"
-      P4A_TAG: "v2023.09.16"
+      P4A_TAG: "2023.09.16"  # 使用正确的标签格式
 
     steps:
       - name: Checkout repository
@@ -53,10 +53,23 @@ jobs:
       - name: Configure buildozer.spec
         run: |
           [ -f buildozer.spec ] || buildozer init
-          sed -i '/^source.dir/c\source.dir = .' buildozer.spec
-          sed -i '/^version/c\version = 1.0.0' buildozer.spec
-          sed -i '/^requirements/c\requirements = python3,kivy==2.2.1,requests==2.31.0,pyjnius,android' buildozer.spec
-          sed -i '/^android.ndk_path/c\android.ndk_path = $ANDROID_HOME/ndk/$NDK_VERSION' buildozer.spec
+          cat > buildozer.spec <<EOF
+          [app]
+          title = RepairApp
+          package.name = repairapp
+          package.domain = com.example
+          source.dir = .
+          version = 1.0.0
+          requirements = python3,kivy==2.2.1,requests==2.31.0,pyjnius,android
+          android.api = 33
+          android.minapi = 21
+          android.sdk_path = $ANDROID_HOME
+          android.ndk_path = $ANDROID_HOME/ndk/$NDK_VERSION
+          android.build_tools = $BUILD_TOOLS_VERSION
+          android.ndk = $NDK_VERSION
+          android.accept_sdk_license = True
+          log_level = 2
+          EOF
 
       - name: Setup Android SDK
         run: |
@@ -78,37 +91,34 @@ jobs:
         run: |
           mkdir -p .buildozer/android/platform
           
-          # 分步克隆和验证
-          if [ ! -d ".buildozer/android/platform/python-for-android" ]; then
-            git clone --branch $P4A_TAG --depth 1 \
-              https://github.com/kivy/python-for-android.git \
-              .buildozer/android/platform/python-for-android
-          fi
+          # 克隆并修复p4a
+          git clone --branch $P4A_TAG --depth 1 \
+            https://github.com/kivy/python-for-android.git \
+            .buildozer/android/platform/python-for-android || true
           
-          # 修复分离头状态
           cd .buildozer/android/platform/python-for-android
-          git checkout -b ci-branch $P4A_TAG
+          git checkout tags/$P4A_TAG -b ci-build
           
-          # 手动创建requirements文件（如果不存在）
-          if [ ! -f "requirements.txt" ]; then
-            echo "创建临时requirements.txt"
-            echo "appdirs==1.4.4" > requirements.txt
-            echo "colorama>=0.3.3" >> requirements.txt
-            echo "sh>=1.12.14" >> requirements.txt
-          fi
-          
-          pip install -r requirements.txt
+          # 强制安装核心依赖
+          pip install --no-deps \
+            appdirs==1.4.4 \
+            colorama>=0.3.3 \
+            sh>=1.12.14 \
+            jinja2>=3.0.0
 
       - name: Build APK
         run: |
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-          buildozer -v android clean
+          buildozer android clean
           buildozer -v android debug \
             --sdk_dir $ANDROID_HOME \
-            --ndk_dir $ANDROID_HOME/ndk/$NDK_VERSION
+            --ndk_dir $ANDROID_HOME/ndk/$NDK_VERSION \
+            --verbose
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-build
-          path: bin/*.apk
+          path: |
+            bin/*.apk
+            .buildozer/android/platform/*.log
