@@ -1,69 +1,123 @@
 name: Android CI
 
+# ========== 事件触发器 ==========
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
+  push:                     # 代码推送触发
+    branches: [ "main" ]   # 仅监视 main 分支
+    paths:                  # 仅当指定文件变更时触发
+      - ".github/workflows/*"
+      - "**/*.py"
+      - "buildozer.spec"
 
+  pull_request:             # PR 触发
+    branches: [ "main" ]
+
+  workflow_dispatch:        # 手动触发选项
+
+# ========== 全局环境变量 ==========
+env:
+  WORKSPACE: ${{ github.workspace }}           # 工作区根目录
+  PYTHON_USER_BASE: ${{ github.workspace }}/.python_packages
+  ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
+  ANDROID_NDK_HOME: ${{ github.workspace }}/.android-ndk
+  BUILD_DIR: ${{ github.workspace }}/.buildozer
+
+# ========== 构建任务 ==========
 jobs:
-  build:
-    runs-on: ubuntu-20.04
-    timeout-minutes: 60
-    env:
-      WORKSPACE: ${{ github.workspace }}
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
+  android-build:
+    name: Build Android APK
+    runs-on: ubuntu-20.04    # 指定运行器系统
+    timeout-minutes: 90      # 超时时间
 
-      steps:
-        - uses: actions/checkout@v4
-  
-        - name: Set up Python 3.9
-          uses: actions/setup-python@v4
-          with:
-            python-version: "3.9"
+    # ===== 构建步骤 =====
+    steps:
+      # ---- Step 1: 拉取代码 ----
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # 获取完整提交历史
 
-    - name: Install System Dependencies
-      run: |
-        sudo apt-get update -y
-        sudo apt-get install -y \
-            git \
-            openjdk-11-jdk \
-            zlib1g-dev \
-            libssl-dev \
-            libncurses5-dev \
-            unzip
+      # ---- Step 2: 初始化环境 ----
+      - name: Initialize workspace
+        run: |
+          # 创建所有隔离目录
+          mkdir -p ${{ env.PYTHON_USER_BASE }}
+          mkdir -p ${{ env.ANDROID_SDK_ROOT }}
+          mkdir -p ${{ env.ANDROID_NDK_HOME }}
+          mkdir -p ${{ env.BUILD_DIR }}
 
-    - name: Install Build Tools
-      run: |
-        # 显式定义Python用户安装路径
-        export PYTHONUSERBASE=${{ env.PYTHON_USER_BASE }}
-        export PATH="$PYTHONUSERBASE/bin:$PATH"
-        
-        # 安装并验证
-        python -m pip install --user --upgrade pip | tee pip_install.log
-        python -m pip install --user cython==0.29.32 buildozer | tee buildozer_install.log
-        
-        # 检查安装结果
-        if [ ! -f "$PYTHONUSERBASE/bin/buildozer" ]; then
-          echo "❌ Buildozer安装失败！"
-          cat pip_install.log buildozer_install.log
-          exit 1
-        fi
-        
-        # 持久化路径
-        echo "$PYTHONUSERBASE/bin" >> $GITHUB_PATH
+          # 递归设置所有权和权限
+          sudo chown -R runner:docker ${{ env.WORKSPACE }}
+          sudo chmod -R 755 ${{ env.WORKSPACE }}
 
-    - name: Build APK
-      run: |
-        # 使用绝对路径调用
-        ${{ env.PYTHON_USER_BASE }}/bin/buildozer \
-          --sdk_dir ${{ env.ANDROID_SDK_ROOT }} \
-          --ndk_dir ${{ env.ANDROID_NDK_HOME }} \
-          android debug
+          # 验证目录结构
+          echo "工作区目录结构："
+          ls -al ${{ env.WORKSPACE }
 
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: app-release
-        path: bin/*.apk
+      # ---- Step 3: 配置 Python ----
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      # ---- Step 4: 安装系统依赖 ----
+      - name: Install system packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+              git \
+              openjdk-11-jdk \
+              zlib1g-dev \
+              libssl-dev \
+              libncurses5-dev \
+              unzip \
+              python3-pip
+
+      # ---- Step 5: 安装构建工具 ----
+      - name: Install Python tools
+        run: |
+          # 配置 Python 用户安装路径
+          export PYTHONUSERBASE=${{ env.PYTHON_USER_BASE }}
+          export PATH="$PYTHONUSERBASE/bin:$PATH"
+
+          # 安装核心工具
+          python -m pip install --user --upgrade pip
+          python -m pip install --user wheel setuptools
+          python -m pip install --user cython==0.29.32
+          python -m pip install --user buildozer==1.5.0
+
+          # 验证安装
+          echo "Buildozer 版本："
+          ${{ env.PYTHON_USER_BASE }}/bin/buildozer --version
+
+          # 持久化路径
+          echo "$PYTHONUSERBASE/bin" >> $GITHUB_PATH
+
+      # ---- Step 6: 构建 APK ----
+      - name: Build debug APK
+        run: |
+          # 导出关键环境变量
+          export HOME=${{ env.WORKSPACE }}/.home
+          export ANDROID_SDK_ROOT=${{ env.ANDROID_SDK_ROOT }}
+          export ANDROID_NDK_HOME=${{ env.ANDROID_NDK_HOME }}
+
+          # 执行构建
+          ${{ env.PYTHON_USER_BASE }}/bin/buildozer \
+            --sdk_dir $ANDROID_SDK_ROOT \
+            --ndk_dir $ANDROID_NDK_HOME \
+            --verbose \
+            android debug
+
+          # 检查产物
+          echo "生成文件列表："
+          ls -l bin/
+
+      # ---- Step 7: 上传产物 ----
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: |
+            bin/*.apk
+            bin/*.apk.idsig
+          retention-days: 7
