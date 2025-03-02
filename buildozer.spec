@@ -1,11 +1,10 @@
 [app]
-android.ndk_path = /home/dministrator/.buildozer/android/platform/android-ndk-r23b
-android.sdk_path = /home/dministrator/.buildozer/android/platform/android-sdk
+
 # (str) Title of your application
-title = 补单工具
+title = RepairApp
 
 # (str) Package name
-package.name = repairtool
+package.name = repairapp
 
 # (str) Package domain (needed for android/ios packaging)
 package.domain = com.example
@@ -14,7 +13,7 @@ package.domain = com.example
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas
+source.include_exts = python3,kivy==2.0.0,requests,openssl,pyjnius,android
 
 # (list) List of inclusions using pattern matching
 #source.include_patterns = assets/*,images/*.png
@@ -73,11 +72,11 @@ android.permissions = INTERNET
 #
 # Android specific
 #
-android.api = 34
+android.api = 33
 # (bool) Indicate if the application should be fullscreen or not
 fullscreen = 0
 
-android.ndk = 23b
+android.ndk = 25b
 # (string) Presplash background color (for android toolchain)
 # Supported formats are: #RRGGBB #AARRGGBB or one of the following names:
 # red, blue, green, black, white, gray, cyan, magenta, yellow, lightgray,
@@ -109,7 +108,7 @@ p4a.branch = master
 android.minapi = 21
 
 # (int) Android SDK version to use
-#android.sdk = 20
+android.sdk = 20
 
 # (str) Android NDK version to use
 #android.ndk = 23b
