@@ -1,3 +1,25 @@
+# 修改后的关键步骤
+- name: Initialize Python-for-Android
+  run: |
+    mkdir -p .buildozer/android/platform
+    git clone https://github.com/kivy/python-for-android.git .buildozer/android/platform/python-for-android
+    cd .buildozer/android/platform/python-for-android
+    git checkout tags/v2023.09.16 -b ci-build
+    
+    # 手动创建 requirements.txt
+    if [ ! -f "requirements.txt" ]; then
+      echo "创建基础依赖清单..."
+      cat > requirements.txt <<EOF
+      appdirs==1.4.4
+      colorama>=0.3.3
+      sh>=1.12.14
+      jinja2>=3.0.0
+      EOF
+    fi
+    
+    pip install -r requirements.txt
+
+# 完整工作流文件
 name: Build Android APK
 
 on:
@@ -24,7 +46,7 @@ jobs:
           kivy==2.2.1
           requests==2.31.0
           pyjnius==1.6.1
-          cryptography==42.0.5  # 替换openssl的Python实现
+          cryptography==42.0.5
           appdirs==1.4.4
           EOF
 
@@ -33,7 +55,6 @@ jobs:
         with:
           python-version: '3.8'
           cache: 'pip'
-          cache-dependency-path: 'requirements.txt'
 
       - name: Install system dependencies
         run: |
@@ -42,7 +63,7 @@ jobs:
               git zip unzip openjdk-8-jdk \
               python3-pip autoconf libtool pkg-config \
               zlib1g-dev libncurses5-dev \
-              libssl-dev libffi-dev  # OpenSSL开发库
+              libssl-dev libffi-dev
 
       - name: Install Python packages
         run: |
@@ -54,10 +75,22 @@ jobs:
       - name: Configure buildozer.spec
         run: |
           [ -f buildozer.spec ] || buildozer init
-          sed -i '/^requirements = /c\requirements = python3,kivy==2.2.1,requests==2.31.0,pyjnius,cryptography,android' buildozer.spec
-          sed -i "s|^android.ndk_path = .*|android.ndk_path = $ANDROID_HOME/ndk/$NDK_VERSION|" buildozer.spec
-          sed -i "s|^android.sdk_path = .*|android.sdk_path = $ANDROID_HOME|" buildozer.spec
-          sed -i '/^android.accept_sdk_license/c\android.accept_sdk_license = True' buildozer.spec
+          cat > buildozer.spec <<EOF
+          [app]
+          title = RepairApp
+          package.name = repairapp
+          package.domain = com.example
+          source.dir = .
+          version = 1.0.0
+          requirements = python3,kivy==2.2.1,requests==2.31.0,pyjnius,cryptography,android
+          android.api = 33
+          android.minapi = 21
+          android.sdk_path = $ANDROID_HOME
+          android.ndk_path = $ANDROID_HOME/ndk/$NDK_VERSION
+          android.build_tools = $BUILD_TOOLS_VERSION
+          android.accept_sdk_license = True
+          log_level = 2
+          EOF
 
       - name: Setup Android SDK
         run: |
@@ -80,7 +113,19 @@ jobs:
           mkdir -p .buildozer/android/platform
           git clone https://github.com/kivy/python-for-android.git .buildozer/android/platform/python-for-android
           cd .buildozer/android/platform/python-for-android
-          git checkout v2023.09.16
+          git checkout tags/v2023.09.16 -b ci-build
+          
+          # 修复缺失的requirements.txt
+          if [ ! -f "requirements.txt" ]; then
+            echo "创建基础依赖清单..."
+            cat > requirements.txt <<EOF
+            appdirs==1.4.4
+            colorama>=0.3.3
+            sh>=1.12.14
+            jinja2>=3.0.0
+            EOF
+          fi
+          
           pip install -r requirements.txt
 
       - name: Build APK
@@ -88,9 +133,13 @@ jobs:
           buildozer -v android clean
           buildozer -v android debug
 
-      - name: Verify build
+      - name: Verify artifacts
         run: |
-          ls -lh bin/*.apk || (echo "APK生成失败！" && exit 1)
+          if [ ! -f "bin/*.apk" ]; then
+            echo "APK生成失败！查看日志："
+            cat .buildozer/android/platform/*.log
+            exit 1
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -98,4 +147,4 @@ jobs:
           name: app-build
           path: |
             bin/*.apk
-            .buildozer/*.log
+            .buildozer/android/platform/*.log
