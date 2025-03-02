@@ -96,14 +96,14 @@ jobs:
           git fetch --tags
           git checkout tags/v2023.09.16 -b ci-build
           
-          # 修复requirements.txt生成
+          # 修复requirements.txt生成（修正EOF缩进）
           if [ ! -f "requirements.txt" ]; then
             cat << 'EOF' > requirements.txt
-            appdirs==1.4.4
-            colorama>=0.3.3
-            sh>=1.12.14
-            jinja2>=3.0.0
-            EOF
+appdirs==1.4.4
+colorama>=0.3.3
+sh>=1.12.14
+jinja2>=3.0.0
+EOF
           fi
           
           pip install -r requirements.txt
