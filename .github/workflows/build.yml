@@ -21,17 +21,20 @@ jobs:
 
       - name: Generate requirements.txt
         run: |
-          echo "kivy==2.2.1" > requirements.txt
-          echo "requests==2.31.0" >> requirements.txt
-          echo "openssl" >> requirements.txt
-          echo "pyjnius" >> requirements.txt
-          echo "android" >> requirements.txt
-          echo "appdirs==1.4.4" >> requirements.txt
+          cat > requirements.txt <<EOF
+          kivy==2.2.1
+          requests==2.31.0
+          openssl
+          pyjnius
+          android
+          appdirs==1.4.4  # 确保在此处声明
+          EOF
 
       - name: Setup Python 3.8
         uses: actions/setup-python@v4
         with:
           python-version: '3.8'
+          cache: 'pip'  # 启用缓存
 
       - name: Install system dependencies
         run: |
@@ -45,30 +48,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install "urllib3<2" cython==0.29.36
+          pip install appdirs==1.4.4  # 显式安装
           pip install buildozer==1.5.0
 
       - name: Initialize buildozer.spec
         run: |
-          # 强制初始化spec文件
-          if [ ! -f buildozer.spec ]; then
-            buildozer init
-          fi
-          
-          # 添加必要的基础配置
-          sed -i '/^source.dir = /c\source.dir = .' buildozer.spec
-          sed -i '/^version = /c\version = 1.0.0' buildozer.spec
-          sed -i '/^orientation = /c\orientation = portrait' buildozer.spec
+          [ -f buildozer.spec ] || buildozer init
+          sed -i '/^source.dir/c\source.dir = .' buildozer.spec
+          sed -i '/^version/c\version = 1.0.0' buildozer.spec
+          sed -i '/^requirements/c\requirements = python3,kivy==2.2.1,requests==2.31.0,openssl,pyjnius,android,appdirs' buildozer.spec
 
-      - name: Configure buildozer.spec
-        run: |
-          # 使用绝对路径配置Android参数
-          sed -i "s|^android.ndk = .*|android.ndk = $NDK_VERSION|" buildozer.spec
-          sed -i "s|^android.ndk_path = .*|android.ndk_path = $ANDROID_HOME/ndk/$NDK_VERSION|" buildozer.spec
-          sed -i "s|^android.sdk_path = .*|android.sdk_path = $ANDROID_HOME|" buildozer.spec
-          sed -i '/^android.accept_sdk_license = /c\android.accept_sdk_license = True' buildozer.spec
-          sed -i '/^requirements = /c\requirements = python3,kivy==2.2.1,requests==2.31.0,openssl,pyjnius,android,appdirs' buildozer.spec
-
-      - name: Setup Android SDK
+      - name: Configure Android SDK
         run: |
           mkdir -p $ANDROID_HOME
           cd $ANDROID_HOME
@@ -84,24 +74,37 @@ jobs:
             "build-tools;$BUILD_TOOLS_VERSION" \
             "ndk;$NDK_VERSION"
 
-      - name: Initialize Python for Android
+      - name: Configure NDK paths
+        run: |
+          echo "ANDROID_NDK=$ANDROID_HOME/ndk/$NDK_VERSION" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> $GITHUB_ENV
+
+      - name: Initialize Python-for-Android
         run: |
           mkdir -p .buildozer/android/platform
           git clone --branch $P4A_TAG --depth 1 \
             https://github.com/kivy/python-for-android.git \
             .buildozer/android/platform/python-for-android
 
-      - name: Verify Configurations
+      - name: Verify installations
         run: |
-          echo "=== 验证 buildozer.spec 配置 ==="
-          grep -E 'source.dir|version|requirements|android.' buildozer.spec
-          echo "=== 验证项目结构 ==="
-          ls -l main.py || (echo "错误：找不到 main.py 入口文件" && exit 1)
+          # 验证Python依赖
+          python -c "import appdirs; print('appdirs version:', appdirs.__version__)"
+          
+          # 验证NDK安装
+          ls -l $ANDROID_HOME/ndk/$NDK_VERSION
 
       - name: Build APK
         run: |
-          buildozer -v android clean
-          buildozer -v android debug
+          # 强制清除缓存
+          buildozer android clean
+          
+          # 设置p4a使用系统Python
+          export USE_SYSTEM_PYTHON=1
+          
+          buildozer -v android debug \
+            --sdk_dir $ANDROID_HOME \
+            --ndk_dir $ANDROID_HOME/ndk/$NDK_VERSION
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
