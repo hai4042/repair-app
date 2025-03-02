@@ -6,8 +6,10 @@ on:
   workflow_dispatch:
 
 env:
+  # 核心路径配置（必须全部指向工作区）
   HOME: ${{ github.workspace }}/.home
   ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
+  ANDROID_NDK_HOME: ${{ github.workspace }}/.android-ndk
   BUILD_DIR: ${{ github.workspace }}/.buildozer
 
 jobs:
@@ -20,9 +22,14 @@ jobs:
 
     - name: Initialize Environment
       run: |
+        # 创建所有必要目录
         mkdir -p ${{ env.HOME }}
         mkdir -p ${{ env.ANDROID_SDK_ROOT }}
+        mkdir -p ${{ env.ANDROID_NDK_HOME }}
         mkdir -p ${{ env.BUILD_DIR }}
+        
+        # 递归设置所有权（关键修复）
+        sudo chown -R $USER:$USER ${{ github.workspace }}
         chmod -R 755 ${{ github.workspace }}
 
     - name: Set up Python 3.9
@@ -45,11 +52,20 @@ jobs:
       run: |
         python -m pip install --user --upgrade pip
         python -m pip install --user cython==0.29.32 buildozer
-        # 将用户级二进制目录加入 PATH
         echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Build APK
       run: |
+        # 强制环境变量生效
+        export HOME=${{ env.HOME }}
+        export ANDROID_SDK_ROOT=${{ env.ANDROID_SDK_ROOT }}
+        export ANDROID_NDK_HOME=${{ env.ANDROID_NDK_HOME }}
+        
+        # 打印调试信息
+        echo "Current user: $(whoami)"
+        echo "Directory permissions:"
+        ls -ld ${{ github.workspace }}
+        
         buildozer android debug
 
     - name: Upload Artifacts
