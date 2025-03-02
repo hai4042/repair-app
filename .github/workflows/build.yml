@@ -3,16 +3,14 @@ name: Build Android APK
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     env:
-      ANDROID_HOME: /usr/lib/android-sdk
-      ANDROID_SDK_ROOT: /usr/lib/android-sdk
-
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -39,7 +37,18 @@ jobs:
               libtinfo6 \
               libncurses5 \
               libsqlite3-dev \
-              libssl-dev
+              libssl-dev \
+              curl
+
+      - name: Install Android Command Line Tools
+        run: |
+          # 下载并安装最新版命令行工具
+          cd ${{ github.workspace }}
+          mkdir -p $ANDROID_HOME
+          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip commandlinetools-linux-*.zip -d $ANDROID_HOME/cmdline-tools
+          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          rm commandlinetools-linux-*.zip
 
       - name: Install Python dependencies
         run: |
@@ -48,7 +57,6 @@ jobs:
 
       - name: Configure buildozer.spec
         run: |
-          # 修改现有spec文件
           sed -i '/^title = /c\title = RepairApp' buildozer.spec
           sed -i '/^package.name = /c\package.name = repairapp' buildozer.spec
           sed -i '/^package.domain = /c\package.domain = com.example' buildozer.spec
@@ -63,14 +71,20 @@ jobs:
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+          
+          # 安装必要组件
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-33" \
+            "build-tools;33.0.1" \
+            "ndk;25.2.9519653"
 
       - name: Build Android APK
         run: |
           buildozer -v android debug
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: repair-app
           path: bin/*.apk
