@@ -3,53 +3,46 @@ name: Android CI
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30 # 超时时间
+    timeout-minutes: 45
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python 3.9
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: "3.9"
 
-    - name: Install system dependencies
+    - name: Install system deps
       run: |
         sudo apt-get update
         sudo apt-get install -y \
             git \
             openjdk-11-jdk \
             zlib1g-dev \
-            libncurses5-dev \
-            libgdbm-dev \
-            libnss3-dev \
-            libssl-dev \
-            libsqlite3-dev
+            libncurses5-dev
+
+    - name: Accept Android licenses
+      run: |
+        yes | sdkmanager --licenses || true
+        mkdir -p ~/.android
+        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" > ~/.android/android-sdk-license
 
     - name: Install Buildozer
       run: |
         pip install --upgrade pip
-        pip install buildozer cython==0.29.32
-
-    - name: Accept Android licenses
-      run: |
-        mkdir -p ~/.android
-        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.android/android-sdk-license
-        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.android/android-sdk-license
+        pip install cython==0.29.32 buildozer
 
     - name: Build APK
-      run: |
-        buildozer android release
-        ls -l ./bin
+      run: buildozer android debug
 
-    - name: Upload APK artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: repair-app
-        path: ./bin/*.apk
+        name: app-debug
+        path: bin/*.apk
