@@ -33,7 +33,6 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.8'
-          cache: 'pip'
 
       - name: Install system dependencies
         run: |
@@ -58,7 +57,6 @@ jobs:
           sed -i '/^version/c\version = 1.0.0' buildozer.spec
           sed -i '/^requirements/c\requirements = python3,kivy==2.2.1,requests==2.31.0,pyjnius,android' buildozer.spec
           sed -i '/^android.ndk_path/c\android.ndk_path = $ANDROID_HOME/ndk/$NDK_VERSION' buildozer.spec
-          sed -i '/^android.sdk_path/c\android.sdk_path = $ANDROID_HOME' buildozer.spec
 
       - name: Setup Android SDK
         run: |
@@ -79,41 +77,38 @@ jobs:
       - name: Initialize Python-for-Android
         run: |
           mkdir -p .buildozer/android/platform
-          # 添加克隆重试机制
-          for i in 1 2 3; do
+          
+          # 分步克隆和验证
+          if [ ! -d ".buildozer/android/platform/python-for-android" ]; then
             git clone --branch $P4A_TAG --depth 1 \
               https://github.com/kivy/python-for-android.git \
-              .buildozer/android/platform/python-for-android && break || sleep 15
-          done
-          
-          # 验证克隆结果
-          if [ ! -d ".buildozer/android/platform/python-for-android" ]; then
-            echo "错误：python-for-android 克隆失败"
-            exit 1
+              .buildozer/android/platform/python-for-android
           fi
-
-          # 安装p4a依赖
+          
+          # 修复分离头状态
           cd .buildozer/android/platform/python-for-android
+          git checkout -b ci-branch $P4A_TAG
+          
+          # 手动创建requirements文件（如果不存在）
+          if [ ! -f "requirements.txt" ]; then
+            echo "创建临时requirements.txt"
+            echo "appdirs==1.4.4" > requirements.txt
+            echo "colorama>=0.3.3" >> requirements.txt
+            echo "sh>=1.12.14" >> requirements.txt
+          fi
+          
           pip install -r requirements.txt
-
-      - name: Pre-build cleanup
-        run: |
-          # 仅清理构建产物，保留必要文件
-          rm -rf .buildozer/android/platform/build-*
-          rm -rf .buildozer/android/app
 
       - name: Build APK
         run: |
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          buildozer -v android clean
           buildozer -v android debug \
             --sdk_dir $ANDROID_HOME \
-            --ndk_dir $ANDROID_HOME/ndk/$NDK_VERSION \
-            --verbose
+            --ndk_dir $ANDROID_HOME/ndk/$NDK_VERSION
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-build
-          path: |
-            bin/*.apk
-            .buildozer/android/platform/*.log
+          path: bin/*.apk
