@@ -1,9 +1,8 @@
+# 修改后的 GitHub Actions 工作流文件
 name: Build Android APK
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
     branches: [ main, master ]
 
 jobs:
@@ -32,33 +31,22 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.8'
-          cache: 'pip'
-          cache-dependency-path: requirements.txt
 
-      - name: Install system dependencies
+      - name: Install core dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-              git \
-              zip \
-              unzip \
-              openjdk-8-jdk \
-              python3-pip \
-              autoconf \
-              libtool \
-              pkg-config \
-              zlib1g-dev \
-              libncurses5-dev \
-              libtinfo6 \
-              libncurses5 \
-              libsqlite3-dev \
-              libssl-dev \
-              libgl1-mesa-dev \
-              libgles2-mesa-dev \
-              curl \
-              wget
+              git zip unzip openjdk-8-jdk \
+              python3-pip autoconf libtool pkg-config \
+              zlib1g-dev libncurses5-dev libssl-dev
 
-      - name: Install Android Command Line Tools
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install "urllib3<2" appdirs==1.4.4 cython==0.29.36
+          pip install buildozer==1.5.0
+
+      - name: Setup Android SDK
         run: |
           mkdir -p $ANDROID_HOME
           cd $ANDROID_HOME
@@ -67,69 +55,36 @@ jobs:
           mv cmdline-tools/cmdline-tools cmdline-tools/latest
           rm commandlinetools-linux-*.zip
 
-      - name: Configure Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install --no-cache-dir "urllib3<2"
-          pip install cython==0.29.36 buildozer==1.5.0
-
-      - name: Configure buildozer.spec
-        run: |
-          [ -f buildozer.spec ] || buildozer init
-          sed -i 's/\r//' buildozer.spec
-          sed -i '/^title = /c\title = RepairApp' buildozer.spec
-          sed -i '/^package.name = /c\package.name = repairapp' buildozer.spec
-          sed -i '/^package.domain = /c\package.domain = com.example' buildozer.spec
-          sed -i '/^orientation = /c\orientation = portrait' buildozer.spec
-          sed -i '/^requirements = /c\requirements = python3,kivy==2.2.1,requests==2.31.0,openssl,pyjnius,android' buildozer.spec
-          sed -i '/^android.permissions = /c\android.permissions = INTERNET' buildozer.spec
-          sed -i '/^android.api = /c\android.api = 33' buildozer.spec
-          sed -i '/^android.ndk = /c\android.ndk = $NDK_VERSION' buildozer.spec
-          sed -i '/^android.ndk_path = /c\android.ndk_path = $ANDROID_HOME/ndk/$NDK_VERSION' buildozer.spec
-          sed -i '/^#android.accept_sdk_license = /c\android.accept_sdk_license = True' buildozer.spec
-          sed -i '/^#android.sdk_path = /c\android.sdk_path = $ANDROID_HOME' buildozer.spec
-          sed -i '/^#log_level = /c\log_level = 2' buildozer.spec
-
-      - name: Install Android components
-        run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             --sdk_root=$ANDROID_SDK_ROOT \
             "platform-tools" \
             "platforms;android-$TARGET_API" \
             "build-tools;$BUILD_TOOLS_VERSION" \
-            "ndk;$NDK_VERSION" \
-            "cmake;3.22.1"
+            "ndk;$NDK_VERSION"
 
-          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+      - name: Configure buildozer.spec
+        run: |
+          [ -f buildozer.spec ] || buildozer init
+          sed -i '/^android.ndk = /c\android.ndk = 25.2.9519653' buildozer.spec
+          sed -i '/^android.ndk_path = /c\android.ndk_path = $ANDROID_HOME/ndk/25.2.9519653' buildozer.spec
+          sed -i '/^android.sdk_path = /c\android.sdk_path = $ANDROID_HOME' buildozer.spec
+          sed -i '/^android.accept_sdk_license = /c\android.accept_sdk_license = True' buildozer.spec
+          sed -i '/^#android.sdk_path/d' buildozer.spec  # 删除注释行
 
       - name: Initialize Python for Android
         run: |
           mkdir -p .buildozer/android/platform
-          git clone --branch v2024.01.21 --depth 1 \
+          git clone --branch 2023.01.30 --depth 1 \
             https://github.com/kivy/python-for-android.git \
             .buildozer/android/platform/python-for-android
-          
-          # 验证NDK路径
-          ls -l $ANDROID_HOME/ndk/$NDK_VERSION
 
       - name: Build APK
         run: |
-          # 清理构建缓存
-          find . -name "*.pyc" -delete
-          rm -rf .buildozer/{android/app,deps}
-          
-          # 强制重建
           buildozer -v android clean
           buildozer -v android debug
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: repair-app
-          path: |
-            bin/*.apk
-            .buildozer/*.log
-          retention-days: 5
+          name: app-build
+          path: bin/*.apk
