@@ -12,7 +12,7 @@ jobs:
     env:
       ANDROID_HOME: /usr/lib/android-sdk
       ANDROID_SDK_ROOT: /usr/lib/android-sdk
-      
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -46,31 +46,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install cython==0.29.19 buildozer==1.3.0
 
-      - name: Initialize Buildozer
+      - name: Configure buildozer.spec
         run: |
-          buildozer init
-          # 更新buildozer.spec配置
-          sed -i '/^#title = My Application/c\title = RepairApp' buildozer.spec
-          sed -i '/^package.name = myapp/c\package.name = repairapp' buildozer.spec
-          sed -i '/^package.domain = org.test/c\package.domain = com.example' buildozer.spec
-          sed -i '/^#orientation = portrait/c\orientation = portrait' buildozer.spec
+          # 修改现有spec文件
+          sed -i '/^title = /c\title = RepairApp' buildozer.spec
+          sed -i '/^package.name = /c\package.name = repairapp' buildozer.spec
+          sed -i '/^package.domain = /c\package.domain = com.example' buildozer.spec
+          sed -i '/^orientation = /c\orientation = portrait' buildozer.spec
           sed -i '/^requirements = /c\requirements = python3,kivy==2.0.0,requests,openssl,pyjnius,android' buildozer.spec
-          sed -i '/^#android.permissions = /c\android.permissions = INTERNET' buildozer.spec
-          sed -i '/^#android.api = /c\android.api = 33' buildozer.spec
-          sed -i '/^#android.ndk = /c\android.ndk = 25b' buildozer.spec
+          sed -i '/^android.permissions = /c\android.permissions = INTERNET' buildozer.spec
+          sed -i '/^android.api = /c\android.api = 33' buildozer.spec
+          sed -i '/^android.ndk = /c\android.ndk = 25b' buildozer.spec
+          sed -i '/^#android.accept_sdk_license = /c\android.accept_sdk_license = True' buildozer.spec
 
       - name: Setup Android SDK
         run: |
           mkdir -p ~/.android
           touch ~/.android/repositories.cfg
-          yes | sdkmanager --licenses
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
       - name: Build Android APK
         run: |
-          buildozer android debug
+          buildozer -v android debug
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: repair-app
           path: bin/*.apk
