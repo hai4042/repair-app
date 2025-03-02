@@ -7,7 +7,8 @@ on:
 
 env:
   # 核心路径配置（必须全部指向工作区）
-  HOME: ${{ github.workspace }}/.home
+  WORKSPACE: ${{ github.workspace }}  # 工作区根目录
+  HOME: ${{ github.workspace }}/.home  # 用户目录
   ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
   ANDROID_NDK_HOME: ${{ github.workspace }}/.android-ndk
   BUILD_DIR: ${{ github.workspace }}/.buildozer
@@ -22,15 +23,20 @@ jobs:
 
     - name: Initialize Environment
       run: |
-        # 创建所有必要目录
+        # 创建所有隔离目录
         mkdir -p ${{ env.HOME }}
         mkdir -p ${{ env.ANDROID_SDK_ROOT }}
         mkdir -p ${{ env.ANDROID_NDK_HOME }}
         mkdir -p ${{ env.BUILD_DIR }}
-        
-        # 递归设置所有权（关键修复）
-        sudo chown -R $USER:$USER ${{ github.workspace }}
-        chmod -R 755 ${{ github.workspace }}
+
+        # 递归设置所有权和权限（关键修复）
+        sudo chown -R runner:docker ${{ env.WORKSPACE }}
+        sudo chmod -R 755 ${{ env.WORKSPACE }}
+
+        # 验证权限
+        echo "目录权限状态："
+        ls -ld ${{ env.WORKSPACE }}
+        ls -ld ${{ env.HOME }}
 
     - name: Set up Python 3.9
       uses: actions/setup-python@v4
@@ -50,23 +56,26 @@ jobs:
 
     - name: Install Build Tools
       run: |
+        # 使用隔离目录安装工具
+        export PYTHONUSERBASE=${{ env.HOME }}
         python -m pip install --user --upgrade pip
         python -m pip install --user cython==0.29.32 buildozer
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        echo "${{ env.HOME }}/.local/bin" >> $GITHUB_PATH
 
     - name: Build APK
       run: |
-        # 强制环境变量生效
+        # 强制所有路径生效
         export HOME=${{ env.HOME }}
         export ANDROID_SDK_ROOT=${{ env.ANDROID_SDK_ROOT }}
         export ANDROID_NDK_HOME=${{ env.ANDROID_NDK_HOME }}
+        export BUILD_DIR=${{ env.BUILD_DIR }}
         
-        # 打印调试信息
-        echo "Current user: $(whoami)"
-        echo "Directory permissions:"
-        ls -ld ${{ github.workspace }}
+        # 调试输出
+        echo "当前用户: $(whoami)"
+        echo "PATH 环境变量: $PATH"
         
-        buildozer android debug
+        # 执行构建（使用绝对路径）
+        ${{ env.HOME }}/.local/bin/buildozer android debug
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
