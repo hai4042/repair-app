@@ -27,14 +27,15 @@ jobs:
           openssl
           pyjnius
           android
-          appdirs==1.4.4  # 确保在此处声明
+          appdirs==1.4.4
+          setuptools==68.2.2  # 新增关键依赖
           EOF
 
       - name: Setup Python 3.8
         uses: actions/setup-python@v4
         with:
           python-version: '3.8'
-          cache: 'pip'  # 启用缓存
+          cache: 'pip'
 
       - name: Install system dependencies
         run: |
@@ -42,13 +43,14 @@ jobs:
           sudo apt-get install -y \
               git zip unzip openjdk-8-jdk \
               python3-pip autoconf libtool pkg-config \
-              zlib1g-dev libncurses5-dev libssl-dev
+              zlib1g-dev libncurses5-dev libssl-dev \
+              libffi-dev  # 新增系统依赖
 
       - name: Install Python packages
         run: |
           python -m pip install --upgrade pip
-          pip install "urllib3<2" cython==0.29.36
-          pip install appdirs==1.4.4  # 显式安装
+          pip install "urllib3<2" cython==0.29.36 wheel==0.41.3
+          pip install -r requirements.txt
           pip install buildozer==1.5.0
 
       - name: Initialize buildozer.spec
@@ -56,7 +58,7 @@ jobs:
           [ -f buildozer.spec ] || buildozer init
           sed -i '/^source.dir/c\source.dir = .' buildozer.spec
           sed -i '/^version/c\version = 1.0.0' buildozer.spec
-          sed -i '/^requirements/c\requirements = python3,kivy==2.2.1,requests==2.31.0,openssl,pyjnius,android,appdirs' buildozer.spec
+          sed -i '/^requirements/c\requirements = python3,kivy==2.2.1,requests==2.31.0,openssl,pyjnius,android,appdirs,setuptools' buildozer.spec
 
       - name: Configure Android SDK
         run: |
@@ -76,8 +78,9 @@ jobs:
 
       - name: Configure NDK paths
         run: |
-          echo "ANDROID_NDK=$ANDROID_HOME/ndk/$NDK_VERSION" >> $GITHUB_ENV
-          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> $GITHUB_ENV
+          echo "NDK_ROOT=$ANDROID_HOME/ndk/$NDK_VERSION" >> $GITHUB_ENV
+          echo "export ANDROID_NDK_HOME" >> $BASH_ENV
 
       - name: Initialize Python-for-Android
         run: |
@@ -85,29 +88,32 @@ jobs:
           git clone --branch $P4A_TAG --depth 1 \
             https://github.com/kivy/python-for-android.git \
             .buildozer/android/platform/python-for-android
-
-      - name: Verify installations
-        run: |
-          # 验证Python依赖
-          python -c "import appdirs; print('appdirs version:', appdirs.__version__)"
           
-          # 验证NDK安装
-          ls -l $ANDROID_HOME/ndk/$NDK_VERSION
+          # 修复p4a的依赖问题
+          cd .buildozer/android/platform/python-for-android
+          pip install -r requirements.txt
+
+      - name: Clean build environment
+        run: |
+          rm -rf .buildozer/android/platform/build-*
+          rm -rf ~/.local/share/python-for-android/
 
       - name: Build APK
         run: |
-          # 强制清除缓存
-          buildozer android clean
-          
-          # 设置p4a使用系统Python
+          # 强制设置环境变量
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           export USE_SYSTEM_PYTHON=1
           
+          buildozer -v android clean all
           buildozer -v android debug \
             --sdk_dir $ANDROID_HOME \
-            --ndk_dir $ANDROID_HOME/ndk/$NDK_VERSION
+            --ndk_dir $ANDROID_HOME/ndk/$NDK_VERSION \
+            --verbose
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-build
-          path: bin/*.apk
+          path: |
+            bin/*.apk
+            .buildozer/*.log
