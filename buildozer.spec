@@ -37,7 +37,7 @@ version = 1.0
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy,requests
+requirements = python3,kivy==2.2.1,requests==2.31.0,openssl,pyjnius,android
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -76,7 +76,7 @@ android.api = 33
 # (bool) Indicate if the application should be fullscreen or not
 fullscreen = 0
 
-android.ndk = 25b
+android.ndk = 25.2.9519653
 # (string) Presplash background color (for android toolchain)
 # Supported formats are: #RRGGBB #AARRGGBB or one of the following names:
 # red, blue, green, black, white, gray, cyan, magenta, yellow, lightgray,
@@ -108,7 +108,7 @@ p4a.branch = master
 android.minapi = 21
 
 # (int) Android SDK version to use
-android.sdk = 20
+android.sdk = 34
 
 # (str) Android NDK version to use
 #android.ndk = 23b
@@ -120,8 +120,8 @@ android.sdk = 20
 #android.private_storage = True
 
 # (str) Android NDK directory (if empty, it will be automatically downloaded.)
-android.ndk_path = $ANDROID_HOME/ndk/25.2.9519653
-
+android.ndk_path = /home/runner/work/repair-app/repair-app/android-sdk/ndk/25.2.9519653
+android.build_tools = 34.0.0
 # (str) Android SDK directory (if empty, it will be automatically downloaded.)
 android.sdk_path = $ANDROID_HOME
 
