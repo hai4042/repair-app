@@ -1,34 +1,27 @@
 name: Android CI
 
-env:
-  # 核心路径定义
-  WORKSPACE: ${{ github.workspace }}
-  PYTHON_USER_BASE: ${{ github.workspace }}/.python_packages
-  ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
-  ANDROID_NDK_HOME: ${{ github.workspace }}/.android-ndk
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-20.04
     timeout-minutes: 60
+    env:
+      WORKSPACE: ${{ github.workspace }}
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
 
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Initialize Environment
-      run: |
-        # 创建隔离目录
-        mkdir -p ${{ env.PYTHON_USER_BASE }}
-        mkdir -p ${{ env.ANDROID_SDK_ROOT }}
-        mkdir -p ${{ env.ANDROID_NDK_HOME }}
-        
-        # 递归设置权限（关键）
-        sudo chmod -R 777 ${{ github.workspace }}
-
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.9"
+      steps:
+        - uses: actions/checkout@v4
+  
+        - name: Set up Python 3.9
+          uses: actions/setup-python@v4
+          with:
+            python-version: "3.9"
 
     - name: Install System Dependencies
       run: |
