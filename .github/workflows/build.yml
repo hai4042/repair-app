@@ -13,7 +13,7 @@ jobs:
       NDK_VERSION: 25.2.9519653
       BUILD_TOOLS_VERSION: "34.0.0"
       TARGET_API: "33"
-      P4A_TAG: "2023.09.16"  # 使用正确的标签格式
+      P4A_TAG: "v2023.09.16"  # 修正标签格式
 
     steps:
       - name: Checkout repository
@@ -91,20 +91,23 @@ jobs:
         run: |
           mkdir -p .buildozer/android/platform
           
-          # 克隆并修复p4a
-          git clone --branch $P4A_TAG --depth 1 \
-            https://github.com/kivy/python-for-android.git \
-            .buildozer/android/platform/python-for-android || true
+          # 分步克隆并验证
+          if [ ! -d ".buildozer/android/platform/python-for-android" ]; then
+            echo "正在克隆python-for-android仓库..."
+            git clone https://github.com/kivy/python-for-android.git \
+              .buildozer/android/platform/python-for-android
+          fi
           
           cd .buildozer/android/platform/python-for-android
+          echo "切换到标签：$P4A_TAG"
+          git fetch --tags
           git checkout tags/$P4A_TAG -b ci-build
           
-          # 强制安装核心依赖
+          # 安装核心依赖
           pip install --no-deps \
             appdirs==1.4.4 \
             colorama>=0.3.3 \
-            sh>=1.12.14 \
-            jinja2>=3.0.0
+            sh>=1.12.14
 
       - name: Build APK
         run: |
