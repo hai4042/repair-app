@@ -73,10 +73,10 @@ android.permissions = INTERNET
 #
 # Android specific
 #
-android.api = 31
+android.api = 34
 # (bool) Indicate if the application should be fullscreen or not
 fullscreen = 0
-android.sdk = 24
+
 android.ndk = 23b
 # (string) Presplash background color (for android toolchain)
 # Supported formats are: #RRGGBB #AARRGGBB or one of the following names:
@@ -106,7 +106,7 @@ p4a.branch = master
 #android.api = 31
 
 # (int) Minimum API your APK / AAB will support.
-#android.minapi = 21
+android.minapi = 21
 
 # (int) Android SDK version to use
 #android.sdk = 20
