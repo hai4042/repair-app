@@ -9,7 +9,7 @@ version = 1.0.0
 orientation = portrait
 
 # 核心依赖
-requirements = python3,kivy==2.2.1,requests==2.31.0,pyjnius,android,cryptography
+requirements = python3,kivy==2.2.1,requests==2.31.0,pyjnius,android
 
 # Android配置
 android.api = 33
