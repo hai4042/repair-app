@@ -21,12 +21,12 @@ jobs:
       - name: Generate requirements.txt
         run: |
           cat << 'EOF' > requirements.txt
-          kivy==2.2.1
-          requests==2.31.0
-          pyjnius==1.6.1
-          cryptography==42.0.5
-          appdirs==1.4.4
-          EOF
+kivy==2.2.1
+requests==2.31.0
+pyjnius==1.6.1
+cryptography==42.0.5
+appdirs==1.4.4
+EOF
 
       - name: Setup Python 3.8
         uses: actions/setup-python@v4
@@ -53,21 +53,21 @@ jobs:
         run: |
           [ -f buildozer.spec ] || buildozer init
           cat << 'EOF' > buildozer.spec
-          [app]
-          title = RepairApp
-          package.name = repairapp
-          package.domain = com.example
-          source.dir = .
-          version = 1.0.0
-          requirements = python3,kivy==2.2.1,requests==2.31.0,pyjnius,cryptography,android
-          android.api = 33
-          android.minapi = 21
-          android.sdk_path = $ANDROID_HOME
-          android.ndk_path = $ANDROID_HOME/ndk/$NDK_VERSION
-          android.build_tools = $BUILD_TOOLS_VERSION
-          android.accept_sdk_license = True
-          log_level = 2
-          EOF
+[app]
+title = RepairApp
+package.name = repairapp
+package.domain = com.example
+source.dir = .
+version = 1.0.0
+requirements = python3,kivy==2.2.1,requests==2.31.0,pyjnius,cryptography,android
+android.api = 33
+android.minapi = 21
+android.sdk_path = $ANDROID_HOME
+android.ndk_path = $ANDROID_HOME/ndk/$NDK_VERSION
+android.build_tools = $BUILD_TOOLS_VERSION
+android.accept_sdk_license = True
+log_level = 2
+EOF
 
       - name: Setup Android SDK
         run: |
@@ -87,16 +87,14 @@ jobs:
 
       - name: Initialize Python-for-Android
         run: |
-          set -euo pipefail  # 启用严格错误检测
+          set -euo pipefail
           mkdir -p .buildozer/android/platform
           
-          # 克隆仓库并处理标签
           git clone https://github.com/kivy/python-for-android.git .buildozer/android/platform/python-for-android
           cd .buildozer/android/platform/python-for-android
           git fetch --tags
           git checkout tags/v2023.09.16 -b ci-build
           
-          # 修复requirements.txt生成（修正EOF缩进）
           if [ ! -f "requirements.txt" ]; then
             cat << 'EOF' > requirements.txt
 appdirs==1.4.4
@@ -111,7 +109,7 @@ EOF
       - name: Build APK
         timeout-minutes: 30
         run: |
-          set -x  # 显示执行的命令
+          set -x
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           buildozer -v android clean
           buildozer -v android debug \
