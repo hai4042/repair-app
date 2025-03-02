@@ -5,13 +5,23 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+env:
+  ANDROID_SDK_ROOT: ${{ github.workspace }}/.android-sdk
+  BUILD_DIR: ${{ github.workspace }}/.buildozer
+
 jobs:
   build:
-    runs-on: ubuntu-20.04  # 明确指定 20.04 LTS
-    timeout-minutes: 30
+    runs-on: ubuntu-20.04
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v4
+
+    - name: Setup Android SDK Path
+      run: |
+        mkdir -p ${{ env.ANDROID_SDK_ROOT }}
+        chmod 777 ${{ env.ANDROID_SDK_ROOT }}
+        echo "sdk.dir=${{ env.ANDROID_SDK_ROOT }}" > local.properties
 
     - name: Set up Python 3.9
       uses: actions/setup-python@v4
@@ -20,29 +30,24 @@ jobs:
 
     - name: Install system deps
       run: |
-        sudo apt-get update -y  # 强制更新源
+        sudo apt-get update -y
         sudo apt-get install -y \
             git \
             openjdk-11-jdk \
             zlib1g-dev \
             libssl-dev \
             libncurses5-dev \
-            python3-pip \
             unzip
-
-    - name: Accept Android licenses
-      run: |
-        mkdir -p ~/.android
-        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" > ~/.android/android-sdk-license
-        yes | sdkmanager --licenses || true
 
     - name: Install Buildozer
       run: |
-        python3 -m pip install --upgrade pip
+        python -m pip install --upgrade pip
         pip install cython==0.29.32 buildozer
 
     - name: Build APK
-      run: buildozer android debug
+      run: |
+        buildozer android debug
+        ls -l ${{ env.BUILD_DIR }}/android/platform
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
