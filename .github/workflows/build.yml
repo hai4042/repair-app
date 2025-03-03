@@ -3,8 +3,6 @@ name: Android Build
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
   build:
@@ -29,27 +27,25 @@ jobs:
 
       - name: Setup Android SDK/NDK
         run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
+          mkdir -p ~/.android/cmdline-tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O cmdline-tools.zip
-          unzip cmdline-tools.zip -d cmdline-tools
-          mv cmdline-tools/cmdline-tools ~/.android/cmdline-tools
+          unzip cmdline-tools.zip -d ~/.android/cmdline-tools
+          mv ~/.android/cmdline-tools/cmdline-tools ~/.android/cmdline-tools/latest
           echo "export ANDROID_SDK_ROOT=$HOME/.android" >> $GITHUB_ENV
-          echo "export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/bin" >> $GITHUB_ENV
-          yes | sdkmanager "platforms;android-33" "build-tools;34.0.0" "ndk;25.2.9519653"
+          echo "export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_ENV
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-33" "build-tools;34.0.0" "ndk;25.2.9519653"
 
-      - name: Configure Buildozer Spec
+      - name: Fix Buildozer Paths
         run: |
           sed -i "s|/home/runner/work/repair-app/repair-app/android-sdk|$HOME/.android|g" buildozer.spec
           sed -i "s|/home/runner/work/repair-app/repair-app/android-sdk/ndk/25.2.9519653|$HOME/.android/ndk/25.2.9519653|g" buildozer.spec
 
       - name: Build APK
         run: buildozer -v android debug
-        env:
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
 
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
         with:
-          name: repairapp.apk
+          name: app-release.apk
           path: bin/*.apk
