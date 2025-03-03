@@ -5,7 +5,7 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
     - name: Checkout code
@@ -16,7 +16,7 @@ jobs:
       with:
         python-version: '3.8'
 
-    - name: Install Dependencies
+    - name: Install System Dependencies
       run: |
         sudo apt-get -qq update
         sudo apt-get install -y \
@@ -24,27 +24,49 @@ jobs:
             libncurses5-dev \
             libffi-dev \
             libsqlite3-dev \
-            openssl
+            openssl \
+            unzip
+
+    - name: Install Build Tools
+      run: |
+        pip install --user buildozer==1.5.0 cython==0.29.32 -i https://pypi.tuna.tsinghua.edu.cn/simple
+        mkdir -p $HOME/.android
+        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O $HOME/cmdline-tools.zip
+        unzip $HOME/cmdline-tools.zip -d $HOME/.android/cmdline-tools
+        mv $HOME/.android/cmdline-tools/cmdline-tools $HOME/.android/cmdline-tools/latest
 
     - name: Configure Buildozer
       run: |
-        pip install --user buildozer
-        echo "[app]" > buildozer.spec
-        echo "title = 订单助手" >> buildozer.spec
-        echo "package.name = repairhelper" >> buildozer.spec
-        echo "package.domain = org.user" >> buildozer.spec
-        echo "source.dir = ." >> buildozer.spec
-        echo "source.include_exts = py,png,jpg,kv,ttf" >> buildozer.spec
-        echo "version = 1.0.0" >> buildozer.spec
-        echo "requirements = python3==3.8.5,kivy==2.0.0,requests,urllib3,chardet,idna" >> buildozer.spec
-        echo "android.permissions = INTERNET" >> buildozer.spec
-        echo "android.api = 30" >> buildozer.spec
-        echo "android.ndk = 19b" >> buildozer.spec
-        echo "p4a.local_recipes = ./buildozer" >> buildozer.spec
+        echo "[app]
+title = RepairApp
+package.name = repairapp
+package.domain = com.example
+source.dir = .
+version = 1.0.0
+orientation = portrait
+requirements = python3==3.8.5,kivy==2.2.1,requests==2.31.0,pyjnius,android,urllib3,chardet,idna,cython==0.29.32
+android.api = 33
+android.minapi = 21
+android.ndk = 23.1.7779620
+android.sdk_path = $HOME/.android
+android.ndk_path = $HOME/.android/ndk/23.1.7779620
+android.build_tools = 34.0.0
+android.accept_sdk_license = True
+p4a.sdk = 33
+android.permissions = INTERNET
+android.arch = armeabi-v7a
+
+[buildozer]
+log_level = 2
+pypi_mirror = https://pypi.tuna.tsinghua.edu.cn/simple
+warn_on_root = 0" > buildozer.spec
 
     - name: Build APK
       run: |
         export PATH=$HOME/.local/bin:$PATH
+        export ANDROID_SDK_ROOT=$HOME/.android
+        export ANDROID_HOME=$HOME/.android
+        yes | $HOME/.android/cmdline-tools/latest/bin/sdkmanager --licenses
         buildozer android debug 2>&1 | tee build.log
         grep "Build completed successfully" build.log
 
