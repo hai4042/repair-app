@@ -16,57 +16,61 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
+          # 强制创建虚拟环境（解决Python版本隔离问题）
+          virtual-environment: true
 
-      - name: Create virtual environment
-        run: python3 -m venv venv
-
-      - name: Activate virtual environment
-        run: source venv/bin/activate
-
-      - name: Install system dependencies
+      - name: Initialize Build Environment
         run: |
-          sudo apt-get update
-          sudo apt-get install -y git unzip openjdk-11-jdk
+          # 创建独立构建目录
+          mkdir -p build_env
+          cd build_env
 
-      - name: Install Buildozer and Cython
+      - name: Install Buildozer in Isolated Environment
         run: |
+          # 在独立目录安装Buildozer（避免污染系统环境）
+          python3 -m venv venv
+          source venv/bin/activate
           pip install buildozer cython==0.29.19
 
-      - name: Setup Android SDK/NDK
+      - name: Configure Android SDK/NDK Paths
         run: |
-          # 下载并安装 Android 命令行工具
+          # 下载并配置Android工具链
           mkdir -p ~/.android/cmdline-tools
           wget -qO cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
           unzip cmdline-tools.zip -d ~/.android/cmdline-tools
           mv ~/.android/cmdline-tools/cmdline-tools ~/.android/cmdline-tools/latest
 
-          # 设置环境变量（强制覆盖）
+          # 强制设置全局环境变量（关键修改）
           export ANDROID_SDK_ROOT=$HOME/.android
           export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/ndk/23.1.7779620/bin
-
-          # 立即生效环境变量
-          echo "PATH=$PATH" >> $GITHUB_ENV
+          # 导出到GitHub Actions环境
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "PATH=$PATH" >> $GITHUB_ENV
 
-          # 验证 sdkmanager 是否可用
+          # 验证环境变量生效
           sdkmanager --version
 
-          # 接受所有许可证
+      - name: Accept Android Licenses
+        run: |
           sdkmanager --licenses accept-all
 
-      - name: Fix Buildozer Paths
+      - name: Update Buildozer Spec File
         run: |
-          sed -i "s|/home/runner/work/.*android-sdk|$HOME/.android|g" buildozer.spec
-          sed -i "s|/home/runner/work/.*ndk/.*|$HOME/.android/ndk/23.1.7779620|g" buildozer.spec
+          # 使用绝对路径覆盖原有配置（关键修改）
+          sed -i "s|android.sdk_path = .*|android.sdk_path = $ANDROID_SDK_ROOT|" buildozer.spec
+          sed -i "s|android.ndk_path = .*|android.ndk_path = $ANDROID_SDK_ROOT/ndk/23.1.7779620|" buildozer.spec
+          sed -i "s|p4a.sdk = .*|p4a.sdk = 33|" buildozer.spec
+          cat buildozer.spec
 
-      - name: Validate Buildozer Spec
-        run: cat buildozer.spec | grep -E "^android\.sdk_path|^android\.ndk_path"
+      - name: Build APK with Verbose Logging
+        run: |
+          # 在独立虚拟环境中执行构建（关键修改）
+          cd build_env
+          source venv/bin/activate
+          buildozer -v android debug
 
-      - name: Build APK
-        run: buildozer -v android debug
-
-      - name: Upload APK
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: app-debug.apk
-          path: bin/app-debug.apk
+          path: build_env/bin/app-debug.apk
