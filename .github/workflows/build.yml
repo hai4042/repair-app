@@ -1,36 +1,57 @@
-name: Android Docker Build
+name: Android Build
 
-on:
-  push:
-    branches: [main]
+on: [push]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      # 使用官方维护的Kivy/Buildozer镜像
-      image: kivy/buildozer:latest
-      options: --privileged
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Set Android SDK Permissions
-        run: |
-          sudo chown -R buildozer:buildozer /home/buildozer/.buildozer
-          sudo chmod 755 /home/buildozer/.android
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
 
-      - name: Build APK
-        run: |
-          buildozer android release \
-            --verbose \
-            --color=no \
-            --profile=ci \
-            --storage-dir=$GITHUB_WORKSPACE/build
+    - name: Install Dependencies
+      run: |
+        sudo apt-get -qq update
+        sudo apt-get install -y \
+            zlib1g-dev \
+            libncurses5-dev \
+            libffi-dev \
+            libsqlite3-dev \
+            openssl
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release.apk
-          path: $GITHUB_WORKSPACE/build/*.apk
+    - name: Configure Buildozer
+      run: |
+        pip install --user buildozer
+        echo "[app]" > buildozer.spec
+        echo "title = 订单助手" >> buildozer.spec
+        echo "package.name = repairhelper" >> buildozer.spec
+        echo "package.domain = org.user" >> buildozer.spec
+        echo "source.dir = ." >> buildozer.spec
+        echo "source.include_exts = py,png,jpg,kv,ttf" >> buildozer.spec
+        echo "version = 1.0.0" >> buildozer.spec
+        echo "requirements = python3==3.8.5,kivy==2.0.0,requests,urllib3,chardet,idna" >> buildozer.spec
+        echo "android.permissions = INTERNET" >> buildozer.spec
+        echo "android.api = 30" >> buildozer.spec
+        echo "android.ndk = 19b" >> buildozer.spec
+        echo "p4a.local_recipes = ./buildozer" >> buildozer.spec
+
+    - name: Build APK
+      run: |
+        export PATH=$HOME/.local/bin:$PATH
+        buildozer android debug 2>&1 | tee build.log
+        grep "Build completed successfully" build.log
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-output
+        path: |
+          bin/*.apk
+          build.log
