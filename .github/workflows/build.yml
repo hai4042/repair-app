@@ -1,31 +1,72 @@
 name: Android Build
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Java
-      uses: actions/setup-java@v2
-      with:
-        distribution: 'zulu'
-        java-version: '11'
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
 
-    - name: Install Android SDK
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y openjdk-11-jdk wget unzip
-        wget https://dl.google.com/android/repository/commandlinetools-linux-7583922_latest.zip -O android-sdk.zip
-        unzip android-sdk.zip -d $HOME/android-sdk
-        export ANDROID_HOME=$HOME/android-sdk
-        export PATH=$ANDROID_HOME/cmdline-tools/bin:$PATH
-        mkdir -p $ANDROID_HOME/cmdline-tools
-        yes | $ANDROID_HOME/cmdline-tools/bin/sdkmanager --licenses
+      - name: Create virtual environment
+        run: python3 -m venv venv
 
-    - name: Build with Gradle
-      run: ./gradlew build
+      - name: Activate virtual environment
+        run: source venv/bin/activate
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git unzip openjdk-11-jdk
+
+      - name: Install Buildozer and Cython
+        run: |
+          pip install buildozer cython==0.29.19
+
+      - name: Setup Android SDK/NDK
+        run: |
+          # 下载并安装 Android 命令行工具
+          mkdir -p ~/.android/cmdline-tools
+          wget -qO cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
+          unzip cmdline-tools.zip -d ~/.android/cmdline-tools
+          mv ~/.android/cmdline-tools/cmdline-tools ~/.android/cmdline-tools/latest
+
+          # 设置环境变量（强制覆盖）
+          export ANDROID_SDK_ROOT=$HOME/.android
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/ndk/23.1.7779620/bin
+
+          # 立即生效环境变量
+          echo "PATH=$PATH" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+          # 验证 sdkmanager 是否可用
+          sdkmanager --version
+
+          # 接受所有许可证
+          sdkmanager --licenses accept-all
+
+      - name: Fix Buildozer Paths
+        run: |
+          sed -i "s|/home/runner/work/.*android-sdk|$HOME/.android|g" buildozer.spec
+          sed -i "s|/home/runner/work/.*ndk/.*|$HOME/.android/ndk/23.1.7779620|g" buildozer.spec
+
+      - name: Validate Buildozer Spec
+        run: cat buildozer.spec | grep -E "^android\.sdk_path|^android\.ndk_path"
+
+      - name: Build APK
+        run: buildozer -v android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug.apk
+          path: bin/app-debug.apk
