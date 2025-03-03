@@ -1,5 +1,0 @@
-kivy==2.2.1
-requests==2.31.0
-pyjnius==1.6.1
-cryptography==42.0.5
-appdirs==1.4.4
