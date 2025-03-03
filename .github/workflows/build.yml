@@ -27,25 +27,35 @@ jobs:
 
       - name: Setup Android SDK/NDK
         run: |
+          # 修复目录结构
           mkdir -p ~/.android/cmdline-tools
           wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O cmdline-tools.zip
           unzip cmdline-tools.zip -d ~/.android/cmdline-tools
           mv ~/.android/cmdline-tools/cmdline-tools ~/.android/cmdline-tools/latest
-          echo "export ANDROID_SDK_ROOT=$HOME/.android" >> $GITHUB_ENV
-          echo "export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_ENV
-          yes | sdkmanager --licenses
-          sdkmanager "platforms;android-33" "build-tools;34.0.0" "ndk;25.2.9519653"
+
+          # 设置环境变量（强制生效）
+          echo "ANDROID_SDK_ROOT=$HOME/.android" >> $GITHUB_ENV
+          echo "PATH=$PATH:$HOME/.android/cmdline-tools/latest/bin" >> $GITHUB_ENV
+
+          # 直接使用绝对路径执行命令
+          ~/.android/cmdline-tools/latest/bin/sdkmanager --licenses
+          ~/.android/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;34.0.0" "ndk;25.2.9519653"
 
       - name: Fix Buildozer Paths
         run: |
+          # 强制替换路径
           sed -i "s|/home/runner/work/repair-app/repair-app/android-sdk|$HOME/.android|g" buildozer.spec
           sed -i "s|/home/runner/work/repair-app/repair-app/android-sdk/ndk/25.2.9519653|$HOME/.android/ndk/25.2.9519653|g" buildozer.spec
+
+          # 验证替换结果
+          cat buildozer.spec | grep "android.sdk_path"
+          cat buildozer.spec | grep "android.ndk_path"
 
       - name: Build APK
         run: buildozer -v android debug
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: app-release.apk
           path: bin/*.apk

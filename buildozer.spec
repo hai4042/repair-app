@@ -22,4 +22,4 @@ android.accept_sdk_license = True
 
 # 构建配置
 log_level = 2
-android.accept_sdk_license = True  # 显式接受协议
+android.accept_sdk_license = True
