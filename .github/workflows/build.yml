@@ -1,4 +1,4 @@
-name: Android Build
+name: Android Docker Build
 
 on:
   push:
@@ -7,62 +7,30 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      # 使用官方维护的Kivy/Buildozer镜像
+      image: kivy/buildozer:latest
+      options: --privileged
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
-          virtual-environment: true
-
-      - name: Prepare isolated build environment
+      - name: Set Android SDK Permissions
         run: |
-          mkdir -p build_env/{venv,android}
-          cd build_env
+          sudo chown -R buildozer:buildozer /home/buildozer/.buildozer
+          sudo chmod 755 /home/buildozer/.android
 
-      - name: Install Buildozer in isolated venv
+      - name: Build APK
         run: |
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install buildozer cython==0.29.19
+          buildozer android release \
+            --verbose \
+            --color=no \
+            --profile=ci \
+            --storage-dir=$GITHUB_WORKSPACE/build
 
-      - name: Configure Android SDK/NDK globally
-        run: |
-          # 下载命令行工具
-          wget -qO cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
-          unzip cmdline-tools.zip -d android/cmdline-tools
-          mv android/cmdline-tools/cmdline-tools android/cmdline-tools/latest
-
-          # 设置全局环境变量（强制生效）
-          export ANDROID_SDK_ROOT=$PWD/android
-          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/ndk/23.1.7779620/bin
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "PATH=$PATH" >> $GITHUB_ENV
-
-          # 验证环境变量
-          sdkmanager --version
-
-      - name: Accept Android Licenses
-        run: |
-          sdkmanager --licenses accept-all
-
-      - name: Update Buildozer Spec with Absolute Paths
-        run: |
-          sed -i "s|android.sdk_path = .*|android.sdk_path = $ANDROID_SDK_ROOT|" buildozer.spec
-          sed -i "s|android.ndk_path = .*|android.ndk_path = $ANDROID_SDK_ROOT/ndk/23.1.7779620|" buildozer.spec
-          cat buildozer.spec
-
-      - name: Build APK with Verbose Output
-        run: |
-          cd build_env
-          source venv/bin/activate
-          buildozer -v android debug
-
-      - name: Upload Artifacts
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug.apk
-          path: build_env/bin/app-debug.apk
+          name: app-release.apk
+          path: $GITHUB_WORKSPACE/build/*.apk
